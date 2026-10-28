@@ -39,9 +39,30 @@
   api.llamar = llamar;
 
   api.detectar = function () {
-    return root.fetch('/api/salud').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { api.disponible = !!(j && j.estado === 'ok'); return api.disponible; })
-      .catch(function () { api.disponible = false; return false; });
-  };
+  var esGitHubPages =
+    root.location.hostname === 'davidpel31.github.io';
+
+  // GitHub Pages no ejecuta FastAPI.
+  // En ese entorno se utiliza el modo de demostración local.
+  if (esGitHubPages) {
+    api.disponible = false;
+    return Promise.resolve(false);
+  }
+
+  // En local, comprueba si FastAPI está disponible.
+  return root.fetch('/api/salud')
+    .then(function (r) {
+      return r.ok ? r.json() : null;
+    })
+    .then(function (j) {
+      api.disponible = !!(j && j.estado === 'ok');
+      return api.disponible;
+    })
+    .catch(function () {
+      api.disponible = false;
+      return false;
+    });
+};
   api.sesionActiva = function () { leerSesion(); return !!api.token; };
   api.login = function (usuario, clave) {
     return llamar('POST', '/api/auth/login', { username: usuario, password: clave }).then(function (r) {
