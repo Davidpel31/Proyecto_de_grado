@@ -23,6 +23,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend
+          path: inventaria/frontend
       - id: despliegue
         uses: actions/deploy-pages@v4

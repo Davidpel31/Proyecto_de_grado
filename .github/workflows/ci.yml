@@ -11,7 +11,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Instalar dependencias
-        run: pip install -r backend/requirements.txt
-      - name: Ejecutar las pruebas
-        working-directory: backend
-        run: python -m pytest -q
+  run: pip install -r inventaria/backend/requirements.txt
+
+- name: Ejecutar las pruebas
+  working-directory: inventaria/backend
+  run: python -m pytest -q
