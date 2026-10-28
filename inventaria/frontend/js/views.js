@@ -103,12 +103,15 @@
       '<label>Tiempo de entrega (días)<input name="tiempoEntrega" type="number" min="1" max="60" required value="' + esc(p.tiempoEntrega) + '"></label>' +
       '<label>Nivel mínimo<input name="nivelMinimo" type="number" min="0" required value="' + esc(p.nivelMinimo) + '"></label>' +
       '<label>Cobertura objetivo (días)<input name="cobertura" type="number" min="1" max="90" required value="' + esc(p.cobertura) + '"></label>' +
+      '<label>Pedido mínimo (unidades)<input name="minimoPedido" type="number" min="1" required value="' + esc(p.minimoPedido || 1) + '"></label>' +
+      '<label>Se pide en múltiplos de<input name="multiploPedido" type="number" min="1" required value="' + esc(p.multiploPedido || 1) + '"></label>' +
       '<label>Nivel de servicio<select name="nivelServicio">' + opciones([{ v: 0.9, t: '90 %' }, { v: 0.95, t: '95 %' }, { v: 0.975, t: '97,5 %' }, { v: 0.99, t: '99 %' }], p.nivelServicio) + '</select></label>' +
       (nuevo ? '' : '<label class="check"><input type="checkbox" name="activo"' + (p.activo !== false ? ' checked' : '') + '> Producto activo</label>') +
       '</div>';
   }
   function leerProducto(d, nuevo, ctx) {
     var costo = parseFloat(d.costo), ent = parseInt(d.tiempoEntrega, 10), minimo = parseInt(d.nivelMinimo, 10), cob = parseInt(d.cobertura, 10);
+    var moq = parseInt(d.minimoPedido, 10), mult = parseInt(d.multiploPedido, 10);
     if (!d.nombre.trim()) return { error: 'Escribe el nombre del producto.' };
     if (nuevo) {
       if (!/^[A-Za-z0-9-]{2,16}$/.test(d.sku.trim())) return { error: 'El código debe tener entre 2 y 16 letras, números o guiones.' };
@@ -118,8 +121,9 @@
     if (isNaN(ent) || ent < 1 || ent > 60) return { error: 'El tiempo de entrega debe estar entre 1 y 60 días.' };
     if (isNaN(minimo) || minimo < 0) return { error: 'El nivel mínimo debe ser un número mayor o igual a cero.' };
     if (isNaN(cob) || cob < 1 || cob > 90) return { error: 'La cobertura objetivo debe estar entre 1 y 90 días.' };
+    if (isNaN(moq) || moq < 1 || isNaN(mult) || mult < 1) return { error: 'El pedido mínimo y el múltiplo deben ser números enteros desde 1.' };
     return { valor: { sku: d.sku.trim().toUpperCase(), nombre: d.nombre.trim(), categoriaId: d.categoriaId, unidadId: d.unidadId, costo: costo, proveedorId: d.proveedorId,
-      tiempoEntrega: ent, nivelMinimo: minimo, cobertura: cob, nivelServicio: parseFloat(d.nivelServicio), activo: nuevo ? true : !!d.activo } };
+      tiempoEntrega: ent, nivelMinimo: minimo, cobertura: cob, nivelServicio: parseFloat(d.nivelServicio), minimoPedido: moq, multiploPedido: mult, activo: nuevo ? true : !!d.activo } };
   }
 
   function productos(ctx) {
@@ -155,9 +159,10 @@
         UI.abrirModal({ titulo: 'Nuevo producto', cuerpo: formProducto(ctx, null), accion: 'Crear producto', alGuardar: function (d) {
           var r = leerProducto(d, true, ctx);
           if (r.error) return r.error;
-          INV.Store.agregarProducto(r.valor);
-          UI.aviso('Producto creado. Importa sus ventas históricas para activar el pronóstico.');
-          ctx.refrescar();
+          return Promise.resolve(INV.Store.agregarProducto(r.valor)).then(function () {
+            UI.aviso('Producto creado. Importa sus ventas históricas para activar el pronóstico.');
+            ctx.refrescar();
+          });
         } });
       });
     } };
@@ -192,9 +197,10 @@
           var r = leerProducto(d, false, ctx);
           if (r.error) return r.error;
           var cambios = r.valor; delete cambios.sku;
-          INV.Store.editarProducto(p.sku, cambios);
-          UI.aviso('Cambios guardados.');
-          ctx.refrescar();
+          return Promise.resolve(INV.Store.editarProducto(p.sku, cambios)).then(function () {
+            UI.aviso('Cambios guardados.');
+            ctx.refrescar();
+          });
         } });
       });
     } };
@@ -218,14 +224,14 @@
         var n = ev.target.elements.nombre.value.trim();
         if (!n) return;
         if (e.categorias.some(function (c) { return c.nombre.toLowerCase() === n.toLowerCase(); })) { UI.aviso('Esa categoría ya existe.', 'error'); return; }
-        INV.Store.agregarCategoria(n); UI.aviso('Categoría agregada.'); ctx.refrescar();
+        Promise.resolve(INV.Store.agregarCategoria(n)).then(function () { UI.aviso('Categoría agregada.'); ctx.refrescar(); }).catch(function (er) { UI.aviso(er.message, 'error'); });
       });
       document.getElementById('form-uni').addEventListener('submit', function (ev) {
         ev.preventDefault();
         var n = ev.target.elements.nombre.value.trim(), a = ev.target.elements.abrev.value.trim();
         if (!n || !a) return;
         if (e.unidades.some(function (u) { return u.abrev.toLowerCase() === a.toLowerCase(); })) { UI.aviso('Esa abreviatura ya existe.', 'error'); return; }
-        INV.Store.agregarUnidad(n, a); UI.aviso('Unidad agregada.'); ctx.refrescar();
+        Promise.resolve(INV.Store.agregarUnidad(n, a)).then(function () { UI.aviso('Unidad agregada.'); ctx.refrescar(); }).catch(function (er) { UI.aviso(er.message, 'error'); });
       });
     } };
   }
@@ -248,8 +254,7 @@
             var t = parseInt(d.tiempoEntrega, 10);
             if (!d.nombre.trim()) return 'Escribe el nombre del proveedor.';
             if (isNaN(t) || t < 1 || t > 60) return 'El tiempo de entrega debe estar entre 1 y 60 días.';
-            INV.Store.agregarProveedor(d.nombre.trim(), d.contacto.trim(), t);
-            UI.aviso('Proveedor creado.'); ctx.refrescar();
+            return Promise.resolve(INV.Store.agregarProveedor(d.nombre.trim(), d.contacto.trim(), t)).then(function () { UI.aviso('Proveedor creado.'); ctx.refrescar(); });
           } });
       });
     } };
@@ -324,9 +329,12 @@
         if (err) { caja.textContent = err; caja.hidden = false; return; }
         caja.hidden = true;
         var cantidad = tipo === 'ajuste' && f.sentido.value === 'menos' ? -cant : cant;
-        var id = INV.Store.agregarMovimiento({ sku: sku, tipo: tipo, cantidad: cantidad, fecha: fecha, usuario: admin ? 'Administrador' : 'Operativo',
-          motivo: motivo || (tipo === 'entrada' ? 'Entrada de mercancía' : 'Salida de inventario'), proveedorId: tipo === 'entrada' ? f.proveedorId.value : null });
-        ctx.ir('/movimientos/nuevo?sku=' + encodeURIComponent(sku) + '&tipo=' + tipo + '&ok=' + id);
+        var boton = ev.target.querySelector('button[type=submit]');
+        boton.disabled = true;
+        Promise.resolve(INV.Store.agregarMovimiento({ sku: sku, tipo: tipo, cantidad: cantidad, fecha: fecha, usuario: admin ? 'Administrador' : 'Operativo',
+          motivo: motivo || (tipo === 'entrada' ? 'Entrada de mercancía' : 'Salida de inventario'), proveedorId: tipo === 'entrada' ? f.proveedorId.value : null }))
+          .then(function (id) { ctx.ir('/movimientos/nuevo?sku=' + encodeURIComponent(sku) + '&tipo=' + tipo + '&ok=' + id); })
+          .catch(function (er) { boton.disabled = false; caja.textContent = er.message; caja.hidden = false; });
       });
     } };
   }
@@ -437,8 +445,9 @@
       '<p class="muted"><a href="#" id="i-descargar">Descargar el archivo de ejemplo</a> para ver el formato. En la versión 1.0 también se aceptarán archivos de Excel (.xlsx).</p></section>' +
       '<aside class="panel lateral"><h2>Qué se revisa</h2><ul class="lista"><li>Que existan las tres columnas.</li><li>Que el producto exista en el catálogo.</li><li>Que la fecha sea válida y no sea futura.</li><li>Que la cantidad sea un entero igual o mayor a cero.</li><li>Que no haya dos filas para el mismo producto y día.</li></ul></aside></div>' +
       '<section id="i-resultado" aria-live="polite"></section>';
-    var pendientes = null;
+    var pendientes = null, textoActual = '';
     function mostrar(texto, nombre) {
+      textoActual = texto;
       var r = validarCSV(texto, ctx), cont = document.getElementById('i-resultado');
       if (r.fatal) { cont.innerHTML = '<section class="panel"><h2>2. Resultado de la revisión</h2><p class="error-form">' + esc(r.fatal) + '</p></section>'; pendientes = null; return; }
       pendientes = r.validas;
@@ -450,11 +459,15 @@
         (r.errores.length ? '<p class="muted">Las filas con error no se importan. Corrígelas en el archivo y vuelve a cargarlo.</p>' : '') + '</section>';
       var b = document.getElementById('i-confirmar');
       if (b) b.addEventListener('click', function () {
-        INV.Store.importarVentas(pendientes);
+        b.disabled = true;
         var skus = {}; pendientes.forEach(function (x) { skus[x.sku] = 1; });
-        UI.aviso('Se importaron ' + pendientes.length + ' filas de ' + Object.keys(skus).length + ' productos. Los pronósticos se recalcularon.');
-        document.getElementById('i-resultado').innerHTML = '<section class="banner-ok" role="status"><strong>Importación lista.</strong> Ya puedes ver el efecto en <a href="#/analisis/pronostico">Pronóstico</a> y en <a href="#/analisis/abc">ABC y rotación</a>.</section>';
-        pendientes = null;
+        var n = pendientes.length;
+        var hecho = INV.Store.confirmarImportacion ? INV.Store.confirmarImportacion(nombre, textoActual) : INV.Store.importarVentas(pendientes);
+        Promise.resolve(hecho).then(function () {
+          UI.aviso('Se importaron ' + n + ' filas de ' + Object.keys(skus).length + ' productos. Los pronósticos se recalcularon.');
+          document.getElementById('i-resultado').innerHTML = '<section class="banner-ok" role="status"><strong>Importación lista.</strong> Ya puedes ver el efecto en <a href="#/analisis/pronostico">Pronóstico</a> y en <a href="#/analisis/abc">ABC y rotación</a>.</section>';
+          pendientes = null;
+        }).catch(function (er) { b.disabled = false; UI.aviso(er.message, 'error'); });
       });
     }
     return { html: html, despues: function () {
@@ -506,62 +519,91 @@
     var cuerpo = '';
     if (!i.analisis.suficiente) {
       cuerpo = '<section class="panel"><h2>Todavía no hay pronóstico</h2><p>' + esc(i.analisis.motivo) + '</p><p>Mientras tanto, el sistema usa una regla simple: pedir cuando las existencias bajan del nivel mínimo (' + num(p.nivelMinimo) + ' ' + esc(u) + ').</p>' +
-        '<p><a class="btn" href="#/importar">Importar ventas históricas</a></p></section>' + tarjetaRecomendacion(i);
+        '<p><a class="btn" href="#/importar">Importar ventas históricas</a></p></section>' + tarjetaRecomendacion(i, admin);
     } else {
       var a = i.analisis, p7 = a.pred.slice(0, 7).reduce(function (s, v) { return s + v; }, 0), p28 = a.pred.reduce(function (s, v) { return s + v; }, 0);
       var mejor = a.tecnicas.filter(function (t) { return t.elegida; })[0];
       var filas = a.tecnicas.map(function (t) {
         var m = t.metricas;
-        return '<tr class="' + (t.elegida ? 'elegida' : '') + '"><td>' + esc(t.nombre) + (t.elegida ? ' <span class="chip-mini ok">elegida</span>' : '') + '</td><td class="num">' + num(m.mae, 2) + '</td><td class="num">' + num(m.rmse, 2) + '</td>' +
+        return '<tr class="' + (t.elegida ? 'elegida' : '') + '"><td>' + esc(t.nombre) + (t.base ? ' <span class="chip-mini">referencia</span>' : '') + (t.elegida ? ' <span class="chip-mini ok">elegida</span>' : '') + '</td><td class="num">' + num(m.mae, 2) + '</td><td class="num">' + num(m.rmse, 2) + '</td>' +
           '<td class="num">' + (m.wape == null ? '—' : UI.pct(m.wape, 0)) + '</td><td class="num">' + (m.mase == null ? '—' : num(m.mase, 2)) + '</td></tr>';
       }).join('');
-      cuerpo = '<dl class="cifras"><div><dt>Se venderían en 7 días</dt><dd>' + num(p7) + ' <small>' + esc(u) + '</small></dd></div><div><dt>Se venderían en 28 días</dt><dd>' + num(p28) + ' <small>' + esc(u) + '</small></dd></div>' +
-        '<div><dt>Error típico por día</dt><dd>±' + num(mejor.metricas.mae, 1) + ' <small>' + esc(u) + '</small></dd></div><div><dt>Técnica elegida</dt><dd class="dd-chico">' + esc(mejor.corto) + '</dd></div></dl>' +
+      var avisos = '';
+      if (!a.superaIngenuo) avisos += '<div class="banner-aviso" role="status"><strong>Ninguna técnica supera al pronóstico ingenuo con estos datos.</strong> Se usa la de menor error, pero no aporta más que repetir lo vendido la semana anterior: conviene tomar la recomendación con cautela.</div>';
+      if (a.diasCensurados > 0) avisos += '<div class="banner-aviso" role="status"><strong>' + a.diasCensurados + ' de los últimos 90 días el producto terminó agotado.</strong> Lo vendido esos días no mide la demanda real: se reemplazó por el promedio del mismo día de la semana para entrenar y no se usó para medir el error.</div>';
+      cuerpo = avisos + '<dl class="cifras"><div><dt>Se venderían en 7 días</dt><dd>' + num(p7) + ' <small>' + esc(u) + '</small></dd></div><div><dt>Se venderían en 28 días</dt><dd>' + num(p28) + ' <small>' + esc(u) + '</small></dd></div>' +
+        '<div><dt>Error típico por día</dt><dd>±' + num(mejor.metricas.mae, 1) + ' <small>' + esc(u) + '</small></dd></div><div><dt>Tipo de demanda</dt><dd class="dd-chico">' + esc(a.patron.tipo) + '</dd></div></dl>' +
         '<div class="dos-col pron-col"><section class="panel" aria-labelledby="t-graf"><div class="panel-cab"><h2 id="t-graf">Ventas y pronóstico</h2></div>' +
-        '<p class="muted">Línea azul: ventas diarias reales. Línea punteada: pronóstico. Franja: rango probable (80 %).</p>' + UI.graficoPronostico(i) + '</section>' + tarjetaRecomendacion(i) + '</div>' +
+        '<p class="muted">Línea azul: ventas diarias reales. Línea punteada: pronóstico. Franja: rango probable (80 %).</p>' + UI.graficoPronostico(i) + '</section>' + tarjetaRecomendacion(i, admin) + '</div>' +
         '<section class="panel" aria-labelledby="t-comp"><div class="panel-cab"><h2 id="t-comp">Comparación de técnicas</h2></div>' +
-        '<p class="muted">Cada técnica se entrenó con el pasado y se probó con las 4 semanas más recientes (4 ventanas de 7 días). Menor error es mejor. Un MASE menor que 1 significa que supera a repetir lo ocurrido la semana anterior.</p>' +
+        '<p class="muted">Evaluación temporal: cada técnica se entrena solo con lo anterior a la fecha de corte y se prueba con los ' + a.horizonteEval + ' días siguientes, repitiendo en las últimas ' + a.ventanas + ' semanas. Los días agotados no cuentan. Menor error es mejor; un MASE menor que 1 significa que supera a repetir lo ocurrido la semana anterior.</p>' +
         tabla(['Técnica', { t: 'MAE', cls: 'num' }, { t: 'RMSE', cls: 'num' }, { t: 'WAPE', cls: 'num' }, { t: 'MASE', cls: 'num' }], filas, 'tabla-tec') + '</section>' +
-        '<details class="panel detalle"><summary>Limitaciones y cómo se calcula</summary><ul class="lista">' +
-        '<li>El pronóstico usa ' + a.diasConDatos + ' días de ventas (' + a.diasConVenta + ' con ventas en los últimos 90). No considera promociones, cambios de precio, festivos ni quiebres de stock pasados.</li>' +
+        '<details class="panel detalle"><summary>Cómo se decidió y qué límites tiene</summary><ul class="lista">' +
+        '<li><strong>Tipo de demanda:</strong> intervalo medio entre ventas (ADI) = ' + num(a.patron.adi, 2) + ' días y variación del tamaño de las ventas (CV²) = ' + num(a.patron.cv2, 2) + ' → <em>' + esc(a.patron.tipo) + '</em>. Con ADI ≥ 1,32 se agrega Croston/SBA a la competencia (Syntetos, Boylan y Croston, 2005).</li>' +
+        '<li><strong>Frecuencia y horizonte:</strong> series diarias; se pronostican 28 días, que cubren el tiempo de entrega más la cobertura objetivo. Se evalúa el error a 7 días porque es la escala del tiempo de entrega.</li>' +
+        '<li>El pronóstico usa ' + a.diasConDatos + ' días de ventas (' + a.diasConVenta + ' con ventas en los últimos 90). No considera promociones, cambios de precio ni festivos.</li>' +
         '<li>El rango probable muestra la incertidumbre: la demanda real puede salirse de la franja una de cada cinco veces.</li>' +
         '<li><strong>Stock de seguridad</strong> = z × σ × √L, con z según el nivel de servicio (' + UI.pct(p.nivelServicio, 1) + ' → z = ' + num(r.z, 2) + '), σ el error típico diario y L los días de entrega.</li>' +
-        '<li><strong>Punto de reorden</strong> = demanda esperada durante la entrega + stock de seguridad. <strong>Cantidad sugerida</strong> = demanda esperada durante (entrega + cobertura objetivo) + stock de seguridad − existencias.</li>' +
-        '<li>En este prototipo las técnicas son versiones simplificadas escritas en JavaScript. En la versión 1.0 se calcularán en el servidor con Python (statsmodels, Prophet).</li></ul></details>';
+        '<li><strong>Posición de inventario</strong> = existencias + pedidos pendientes. <strong>Punto de reorden</strong> = demanda esperada durante la entrega + stock de seguridad. <strong>Cantidad sugerida</strong> = demanda esperada durante (entrega + cobertura objetivo) + stock de seguridad − posición, ajustada al pedido mínimo y al múltiplo del proveedor.</li>' +
+        '<li>En este prototipo las técnicas son versiones simplificadas escritas en JavaScript. En el Avance 5 se calcularán en el servidor con Python (statsmodels, Prophet) y se compararán contra una regla simple de reposición.</li></ul></details>';
     }
     return { html: cabecera('Pronóstico por producto', 'Cuánto se venderá y cuánto conviene pedir.', selector) + cuerpo, despues: function () {
       document.getElementById('p-sku').addEventListener('change', function (ev) { ctx.ir('/analisis/pronostico/' + encodeURIComponent(ev.target.value)); });
+      conectarPedidos(ctx, document.getElementById('contenido'));
     } };
   }
 
-  function tarjetaRecomendacion(i) {
-    var r = i.rep, u = i.unidad.abrev, p = i.producto, prov = i.proveedor;
-    var titulo, clase, razones = '';
+  function tarjetaRecomendacion(i, admin) {
+    var r = i.rep, u = i.unidad.abrev, p = i.producto, prov = i.proveedor, pend = i.pendientes || [];
+    var titulo, clase, razones = '', pedible = false;
     if (r.regla === 'simple') {
-      clase = r.q > 0 ? 'rec-pedir' : 'rec-ok';
+      clase = r.q > 0 ? 'rec-pedir' : 'rec-ok'; pedible = r.q > 0;
       titulo = r.q > 0 ? 'Pedir ' + num(r.q) + ' ' + u + ' hoy' : 'No hace falta pedir por ahora';
-      razones = '<li>Hay pocas ventas para pronosticar, por eso se usa una regla simple.</li><li>Hoy hay ' + num(i.existencias) + ' ' + esc(u) + ' y el nivel mínimo es ' + num(p.nivelMinimo) + ' ' + esc(u) + '.</li>' +
-        (r.q > 0 ? '<li>Se sugiere reponer hasta el doble del nivel mínimo.</li>' : '');
+      razones = '<li>Hay pocas ventas para pronosticar, por eso se usa una regla simple.</li><li>Entre existencias y pedidos en camino hay ' + num(r.posicion) + ' ' + esc(u) + ' y el nivel mínimo es ' + num(p.nivelMinimo) + ' ' + esc(u) + '.</li>' +
+        (r.q > 0 ? '<li>Se sugiere reponer hasta cerca del doble del nivel mínimo.</li>' : '');
     } else if (i.estado === 'sobreinventario') {
       clase = 'rec-sobre'; titulo = 'No comprar más por ahora';
       razones = '<li>Hay ' + num(i.existencias) + ' ' + esc(u) + ', suficientes para unos ' + num(r.cobertura) + ' días.</li><li>Se venden unas ' + num(r.mediaDia, 1) + ' ' + esc(u) + ' por día.</li><li>Lo recomendable es tener entre ' + p.tiempoEntrega + ' y ' + (p.tiempoEntrega + p.cobertura) + ' días de ventas.</li>';
     } else if (r.q > 0 && (r.diasParaPedir != null && r.diasParaPedir <= 7)) {
-      clase = 'rec-pedir'; titulo = 'Pedir ' + num(r.q) + ' ' + u + ' ' + E.cuando(r.diasParaPedir);
+      clase = 'rec-pedir'; pedible = true; titulo = 'Pedir ' + num(r.q) + ' ' + u + ' ' + E.cuando(r.diasParaPedir);
+    } else if (i.estado === 'agotamiento' && pend.length) {
+      // ya hay un pedido, pero llega después de que se acaben las existencias
+      clase = 'rec-pedir';
+      titulo = 'Se agotaría antes de que llegue el pedido en camino';
     } else {
       clase = 'rec-ok'; titulo = 'No hace falta pedir por ahora';
     }
     if (r.regla === 'pronostico' && i.estado !== 'sobreinventario') {
       razones = '<li>Se venden unas ' + num(r.mediaDia, 1) + ' ' + esc(u) + ' por día (según el pronóstico).</li>' +
         '<li>Hoy hay ' + num(i.existencias) + ' ' + esc(u) + ', que alcanzan para ' + UI.coberturaTexto(r) + '.</li>' +
+        (pend.length ? '<li>Ya hay ' + num(r.enCamino) + ' ' + esc(u) + ' pedidas que llegan ' + E.cuando(pend.slice().sort(function (a, b) { return a.dias - b.dias; })[0].dias) + '; se descuentan de lo que falta.</li>' : '') +
         '<li>' + (prov ? esc(prov.nombre) : 'El proveedor') + ' tarda ' + p.tiempoEntrega + ' días en entregar.</li>' +
         '<li>Se deja un colchón de seguridad de ' + num(r.ss) + ' ' + esc(u) + ' (nivel de servicio ' + UI.pct(p.nivelServicio, 1) + ').</li>' +
         '<li>La cantidad cubre ' + p.cobertura + ' días de ventas después de que llegue el pedido.</li>' +
-        (r.q === 0 ? '<li>El punto de reorden (' + num(r.pr) + ' ' + esc(u) + ') se alcanzaría ' + (r.diasParaPedir == null ? 'después de 35 días' : E.cuando(r.diasParaPedir)) + '.</li>' : '');
+        (pedible && r.q > 0 && r.q !== r.qBruta ? '<li>Se calculó ' + num(r.qBruta) + ' ' + esc(u) + ', pero el proveedor vende con mínimo de ' + num(p.minimoPedido || 1) + ' y en múltiplos de ' + num(p.multiploPedido || 1) + ': se ajusta a ' + num(r.q) + '.</li>' : '') +
+        (!pedible && i.estado !== 'agotamiento' ? '<li>El punto de reorden (' + num(r.pr) + ' ' + esc(u) + ') se alcanzaría ' + (r.diasParaPedir == null ? 'después de 35 días' : E.cuando(r.diasParaPedir)) + '.</li>' : '') +
+        (!pedible && i.estado === 'agotamiento' && pend.length ? '<li>Con las ventas esperadas se agotaría ' + E.cuando(r.diasParaAgotar == null ? 0 : r.diasParaAgotar) + ', antes de que llegue el pedido. Conviene pedirle al proveedor que adelante la entrega o conseguir unidades de urgencia.</li>' : '');
     }
-    var cta = (r.q > 0 && i.estado !== 'sobreinventario') ? '<a class="btn btn-primary" href="#/movimientos/nuevo?sku=' + encodeURIComponent(i.sku) + '&tipo=entrada&cantidad=' + r.q + '">Registrar la entrada cuando llegue</a>' : '';
+    var cta = '';
+    if (pedible && admin && i.estado !== 'sobreinventario') {
+      cta = '<button class="btn btn-primary" type="button" data-pedir="' + esc(i.sku) + '" data-cant="' + r.q + '">Registrar pedido de ' + num(r.q) + ' ' + esc(u) + ' al proveedor</button>';
+    }
     return '<section class="panel recomendacion ' + clase + '" aria-labelledby="t-rec"><p class="rec-etiqueta" id="t-rec">Recomendación</p><p class="rec-titulo">' + titulo + '</p>' +
-      (r.q > 0 && i.estado !== 'sobreinventario' ? '<p class="muted">Costo estimado: ' + UI.dinero(r.q * p.costo) + '</p>' : '') +
+      (pedible && r.q > 0 && i.estado !== 'sobreinventario' ? '<p class="muted">Costo estimado: ' + UI.dinero(r.q * p.costo) + '</p>' : '') +
       '<h3>¿Por qué?</h3><ul class="lista">' + razones + '</ul>' + cta + '</section>';
+  }
+
+  // registra un pedido al proveedor a partir de una recomendación (botones data-pedir)
+  function conectarPedidos(ctx, raiz) {
+    Array.prototype.forEach.call(raiz.querySelectorAll('[data-pedir]'), function (b) {
+      b.addEventListener('click', function () {
+        var sku = b.getAttribute('data-pedir'), cant = parseInt(b.getAttribute('data-cant'), 10), i = ctx.A.info[sku], p = i.producto;
+        b.disabled = true;
+        Promise.resolve(INV.Store.agregarPedido({ sku: sku, cantidad: cant, proveedorId: p.proveedorId, fechaPedido: FE.HOY, fechaEsperada: FE.addDias(FE.HOY, p.tiempoEntrega) }))
+          .then(function () { UI.aviso('Pedido registrado: ' + num(cant) + ' ' + i.unidad.abrev + ' de ' + p.nombre + '. Llegan ' + E.cuando(p.tiempoEntrega) + '.'); ctx.refrescar(); })
+          .catch(function (er) { b.disabled = false; UI.aviso(er.message, 'error'); });
+      });
+    });
   }
 
   /* ================================== ALERTAS ================================== */
@@ -594,7 +636,7 @@
       return l.map(function (i) {
         return '<tr><td>' + enlaceProducto(i) + '<small class="sku">' + esc(i.sku) + '</small></td><td class="num"><strong>' + num(i.rep.q) + ' ' + esc(i.unidad.abrev) + '</strong></td><td>' + E.cuando(i.rep.diasParaPedir) + '</td>' +
           '<td>' + (i.proveedor ? esc(i.proveedor.nombre) : '—') + '</td><td class="num">' + UI.dinero(i.rep.q * i.producto.costo) + '</td>' +
-          '<td><a href="#/analisis/pronostico/' + encodeURIComponent(i.sku) + '">Por qué</a> · <a href="#/movimientos/nuevo?sku=' + encodeURIComponent(i.sku) + '&tipo=entrada&cantidad=' + i.rep.q + '">Registrar entrada</a></td></tr>';
+          '<td><a href="#/analisis/pronostico/' + encodeURIComponent(i.sku) + '">Por qué</a> · <button class="btn btn-quiet btn-chico" type="button" data-pedir="' + esc(i.sku) + '" data-cant="' + i.rep.q + '">Registrar pedido</button></td></tr>';
       }).join('');
     }
     var cab = ['Producto', { t: 'Cantidad', cls: 'num' }, 'Cuándo', 'Proveedor', { t: 'Costo estimado', cls: 'num' }, 'Acciones'];
@@ -612,7 +654,41 @@
       '<section class="panel"><div class="panel-cab"><h2>Pedir hoy</h2></div>' + (ya.length ? tabla(cab, filas(ya)) : vacio('No hay pedidos urgentes hoy.')) + '</section>' +
       '<section class="panel"><div class="panel-cab"><h2>Pedir en los próximos 7 días</h2></div>' + (semana.length ? tabla(cab, filas(semana)) : vacio('No hay pedidos previstos para esta semana.')) + '</section>' +
       '<section class="panel"><div class="panel-cab"><h2>Resumen por proveedor</h2></div>' + (resumen ? tabla(['Proveedor', { t: 'Productos', cls: 'num' }, { t: 'Costo estimado', cls: 'num' }], resumen + '<tr class="total"><td>Total</td><td class="num">' + candidatos.length + '</td><td class="num">' + UI.dinero(total) + '</td></tr>') : vacio('Sin pedidos sugeridos.')) + '</section>';
-    return { html: html };
+    return { html: html, despues: function () { conectarPedidos(ctx, document.getElementById('contenido')); } };
+  }
+
+  /* ============================= PEDIDOS A PROVEEDORES ============================= */
+  function pedidos(ctx) {
+    var A = ctx.A, e = ctx.estado, admin = esAdmin(ctx);
+    var provPorId = {}; e.proveedores.forEach(function (p) { provPorId[String(p.id)] = p; });
+    function fila(p, acciones) {
+      var i = A.info[p.sku], u = i ? i.unidad.abrev : 'und', prov = provPorId[String(p.proveedorId)];
+      var dias = FE.difDias(FE.HOY, p.fechaEsperada);
+      var cuando = p.estado !== 'pendiente' ? FE.media(p.fechaEsperada) : (dias < 0 ? '<strong class="texto-rojo">Atrasado (' + FE.media(p.fechaEsperada) + ')</strong>' : (dias === 0 ? 'Hoy' : FE.media(p.fechaEsperada) + ' (en ' + dias + (dias === 1 ? ' día' : ' días') + ')'));
+      return '<tr><td>' + esc(p.id) + '</td><td>' + (i ? enlaceProducto(i) : esc(p.sku)) + '</td><td class="num">' + num(p.cantidad) + ' ' + esc(u) + '</td><td>' + (prov ? esc(prov.nombre) : '—') + '</td>' +
+        '<td>' + FE.media(p.fechaPedido) + '</td><td>' + cuando + '</td><td>' + (acciones || '<span class="chip-mini">' + esc(p.estado) + '</span>') + '</td></tr>';
+    }
+    var pend = e.pedidos.filter(function (p) { return p.estado === 'pendiente'; }).sort(function (a, b) { return a.fechaEsperada < b.fechaEsperada ? -1 : 1; });
+    var hist = e.pedidos.filter(function (p) { return p.estado !== 'pendiente'; }).slice(-10).reverse();
+    var cab = ['Pedido', 'Producto', { t: 'Cantidad', cls: 'num' }, 'Proveedor', 'Fecha del pedido', 'Llega', 'Estado'];
+    var filasPend = pend.map(function (p) {
+      return fila(p, '<button class="btn btn-quiet btn-chico" type="button" data-recibir="' + esc(p.id) + '">Marcar como recibido</button>' + (admin ? '<button class="btn btn-quiet btn-chico" type="button" data-cancelar="' + esc(p.id) + '">Cancelar</button>' : ''));
+    }).join('');
+    var html = cabecera('Pedidos a proveedores', 'Lo que ya se pidió y todavía no llega. El sistema lo descuenta de lo que falta por pedir.') +
+      '<section class="panel"><div class="panel-cab"><h2>Pendientes</h2></div>' + (pend.length ? tabla(cab, filasPend) : vacio('No hay pedidos pendientes.' + (admin ? ' Los puedes registrar desde <a href="#/analisis/recomendaciones">Recomendaciones</a>.' : ''))) + '</section>' +
+      '<section class="panel"><div class="panel-cab"><h2>Recientes</h2></div>' + (hist.length ? tabla(cab, hist.map(function (p) { return fila(p); }).join('')) : vacio('Aún no hay pedidos recibidos o cancelados.')) + '</section>' +
+      '<p class="muted nota">Al marcar un pedido como recibido se registra automáticamente una entrada de inventario con el motivo «Recepción del pedido».</p>';
+    return { html: html, despues: function () {
+      var raiz = document.getElementById('contenido');
+      raiz.addEventListener('click', function (ev) {
+        var br = ev.target.closest('[data-recibir]'), bc = ev.target.closest('[data-cancelar]');
+        var b = br || bc; if (!b) return;
+        b.disabled = true;
+        var hecho = br ? INV.Store.recibirPedido(br.getAttribute('data-recibir'), admin ? 'Administrador' : 'Operativo') : INV.Store.cancelarPedido(bc.getAttribute('data-cancelar'));
+        Promise.resolve(hecho).then(function () { UI.aviso(br ? 'Pedido recibido: las existencias se actualizaron.' : 'Pedido cancelado.'); ctx.refrescar(); })
+          .catch(function (er) { b.disabled = false; UI.aviso(er.message, 'error'); });
+      });
+    } };
   }
 
   /* ========================= PARÁMETROS DE REPOSICIÓN ========================= */
@@ -632,7 +708,8 @@
         var p = A.info[b.getAttribute('data-sku')].producto;
         UI.abrirModal({ titulo: 'Parámetros de ' + p.nombre, cuerpo: formProducto(ctx, p), alGuardar: function (d) {
           var r = leerProducto(d, false, ctx); if (r.error) return r.error;
-          var c = r.valor; delete c.sku; INV.Store.editarProducto(p.sku, c); UI.aviso('Parámetros actualizados. Las recomendaciones se recalcularon.'); ctx.refrescar();
+          var c = r.valor; delete c.sku;
+          return Promise.resolve(INV.Store.editarProducto(p.sku, c)).then(function () { UI.aviso('Parámetros actualizados. Las recomendaciones se recalcularon.'); ctx.refrescar(); });
         } });
       });
     } };
@@ -653,7 +730,7 @@
     return { html: html };
   }
 
-  INV.views = { dashboard: dashboard, productos: productos, productoDetalle: productoDetalle, categorias: categorias, proveedores: proveedores, nuevoMovimiento: nuevoMovimiento,
+  INV.views = { pedidos: pedidos, dashboard: dashboard, productos: productos, productoDetalle: productoDetalle, categorias: categorias, proveedores: proveedores, nuevoMovimiento: nuevoMovimiento,
     historial: historial, importar: importar, abc: abc, pronostico: pronostico, alertas: alertas, recomendaciones: recomendaciones, parametros: parametros, usuarios: usuarios,
     _validarCSV: validarCSV, _csvEjemplo: csvEjemplo };
 })(typeof window !== 'undefined' ? window : globalThis);

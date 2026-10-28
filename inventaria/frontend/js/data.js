@@ -119,6 +119,12 @@
     { sku: 'PIL-AA', nombre: 'Pilas AA x2', cat: 'c4', uni: 'u2', costo: 3900, base: 0.9, perfil: 'plano', tend: 0, ruido: 0.4, p: 0.32, tam: 2.2, prov: 'p5', cob: 21, objetivo: { dias: 45 } }
   ];
 
+  // [mínimo de pedido, múltiplo]: los proveedores venden por cajas o paquetes cerrados
+  var MOQ = {
+    'ARR-500': [48, 24], 'ACE-1L': [12, 12], 'LEC-1L': [24, 12], 'CAF-250': [12, 12], 'GAS-15L': [12, 6],
+    'AGU-600': [24, 12], 'CER-330': [24, 24], 'HUE-30': [4, 1], 'AZU-1K': [10, 10], 'PAP-4': [6, 6]
+  };
+
   /* --------------------- generación de datos base --------------------- */
   function generarBase() {
     var fechas = [];
@@ -153,57 +159,67 @@
         }
         serie.push(q);
       }
-      ventas[s.sku] = serie;
 
-      // 2) compras (entradas) con una política simple de reposición.
-      //    `corte` simula un retraso del proveedor: no llegan compras después de ese día.
+      // 2) compras con una política simple de reposición (se simula con la demanda deseada)
       var inicial = Math.max(3, Math.round(s.base * (lead + 10)));
-      var rnd2 = mulberry32(5000 + idx * 31);
-      function simular(corte) {
-        var rr = mulberry32(5000 + idx * 31);
-        var stock = inicial, enCamino = 0, llegadas = {}, mov = [], stockDia = [];
+      var rr = mulberry32(5000 + idx * 31);
+      var llegadasPol = []; // {t, q}
+      (function () {
+        var stock = inicial, enCamino = 0, llegan = {};
         for (var t = 0; t < DIAS_HISTORIA; t++) {
           var esperada = s.base * (1 + s.tend * (t / 100));
           var rop = Math.max(2, esperada * (lead + 3));
           var pedido = Math.max(3, Math.round(esperada * (s.cob + lead)));
-          if (llegadas[t] && t <= corte) { stock += llegadas[t]; enCamino -= llegadas[t]; mov.push({ t: t, tipo: 'entrada', q: llegadas[t] }); }
-          var vendido = Math.min(stock, serie[t]);
-          stock -= vendido;
-          if (vendido > 0) mov.push({ t: t, tipo: 'salida', q: vendido });
-          stockDia.push(stock);
+          if (llegan[t]) { stock += llegan[t]; enCamino -= llegan[t]; llegadasPol.push({ t: t, q: llegan[t] }); }
+          stock -= Math.min(stock, serie[t]);
           if (stock + enCamino <= rop && t < DIAS_HISTORIA - 1) {
-            var llega = t + lead;
-            var cant = Math.max(3, Math.round(pedido * (0.9 + rr() * 0.25)));
-            if (llega < DIAS_HISTORIA) { llegadas[llega] = (llegadas[llega] || 0) + cant; enCamino += cant; }
+            var llega = t + lead, cant = Math.max(3, Math.round(pedido * (0.9 + rr() * 0.25)));
+            if (llega < DIAS_HISTORIA) { llegan[llega] = (llegan[llega] || 0) + cant; enCamino += cant; }
           }
         }
-        return { mov: mov, stock: stock, stockDia: stockDia };
+      })();
+
+      // 3) pequeños ajustes de conteo (de ±1 unidad)
+      var ajustesPol = [];
+      for (var k = 0; k < 2; k++) {
+        ajustesPol.push({ t: 20 + Math.floor(rnd() * (DIAS_HISTORIA - 60)), q: rnd() < 0.7 ? -1 : 1 });
+      }
+
+      // 4) repetición determinista: con las llegadas ya fijadas se calcula qué se vendió de verdad
+      //    (nunca más que las existencias) y cómo quedó el inventario día a día
+      function repetir(llegadas) {
+        var stock = inicial, mov = [], vendidos = new Array(DIAS_HISTORIA).fill(0);
+        for (var t = 0; t < DIAS_HISTORIA; t++) {
+          llegadas.forEach(function (l) { if (l.t === t) { stock += l.q; mov.push({ t: t, tipo: 'entrada', q: l.q }); } });
+          ajustesPol.forEach(function (a) {
+            if (a.t === t && (a.q > 0 || stock >= 3)) { stock += a.q; mov.push({ t: t, tipo: 'ajuste', q: a.q }); }
+          });
+          var v = Math.min(stock, serie[t]);
+          if (v > 0) { stock -= v; vendidos[t] = v; mov.push({ t: t, tipo: 'salida', q: v }); }
+        }
+        return { stock: stock, mov: mov, vendidos: vendidos };
       }
       var meta = Math.max(1, Math.round(s.base * s.objetivo.dias));
-      var corte = DIAS_HISTORIA;               // sin retraso
-      var sim = simular(corte);
-      if (sim.stock > meta * 1.25) {           // se atrasa el proveedor hasta que el stock baje a la meta
-        for (corte = DIAS_HISTORIA - 1; corte > DIAS_HISTORIA - 90; corte--) {
-          sim = simular(corte);
-          if (sim.stock <= meta * 1.25) break;
+      var llegadas = llegadasPol.slice();
+      var res = repetir(llegadas);
+      if (res.stock > meta * 1.25) {
+        // el último pedido llegó incompleto (o no llegó): se reduce hasta acercarse a la meta
+        for (var li = llegadas.length - 1; li >= 0 && res.stock > meta * 1.25; li--) {
+          var orig = llegadas[li].q, lo = 0, hi = orig;
+          while (hi - lo > 1) {
+            var mid = (lo + hi) >> 1;
+            llegadas[li] = { t: llegadas[li].t, q: mid };
+            if (repetir(llegadas).stock > meta) hi = mid; else lo = mid;
+          }
+          llegadas[li] = { t: llegadas[li].t, q: lo };
+          res = repetir(llegadas);
+          if (llegadas[li].q < Math.max(1, orig * 0.15)) { llegadas.splice(li, 1); res = repetir(llegadas); }
         }
       }
-      var mov = sim.mov, stockDia = sim.stockDia, stock = sim.stock;
-      var minDesde = new Array(DIAS_HISTORIA);
-      var mn = Infinity;
-      for (var u = DIAS_HISTORIA - 1; u >= 0; u--) { mn = Math.min(mn, stockDia[u]); minDesde[u] = mn; }
-
-      // 3) pequeños ajustes de conteo (se definen antes para poder descontarlos)
-      var ajustes = [], netoAjustes = 0;
-      for (var k = 0; k < 2; k++) {
-        var td = 20 + Math.floor(rnd() * (DIAS_HISTORIA - 60));
-        var cantAj = rnd() < 0.7 ? -1 : 1;
-        if (cantAj < 0 && minDesde[td] < 3) cantAj = 1; // nunca dejar el stock en negativo
-        ajustes.push({ td: td, q: cantAj });
-        netoAjustes += cantAj;
-      }
-      // 4) corrección final para que cada producto muestre un escenario distinto hoy
-      var ajusteFinal = meta - stock - netoAjustes;
+      var correccion = 0;
+      if (res.stock < meta * 0.8) { correccion = meta - res.stock; }
+      ventas[s.sku] = res.vendidos;
+      var mov = res.mov;
 
       // 5) registrar movimientos
       nuevoMov(s.sku, 'ajuste', inicial, fechas[0], 'Inventario inicial', null, 'Administrador');
@@ -212,34 +228,43 @@
         if (m.tipo === 'entrada') {
           nFactura++;
           nuevoMov(s.sku, 'entrada', m.q, fechas[m.t], 'Compra a proveedor · factura ' + nFactura, s.prov, 'Operativo');
+        } else if (m.tipo === 'ajuste') {
+          nuevoMov(s.sku, 'ajuste', m.q, fechas[m.t], m.q < 0 ? 'Producto vencido o dañado' : 'Error de conteo corregido', null, 'Administrador');
         } else {
           nuevoMov(s.sku, 'salida', m.q, fechas[m.t], 'Ventas del día', null, 'Operativo');
         }
       });
-      ajustes.forEach(function (a) {
-        nuevoMov(s.sku, 'ajuste', a.q, fechas[a.td], a.q < 0 ? 'Producto vencido o dañado' : 'Error de conteo corregido', null, 'Administrador');
-      });
-      if (ajusteFinal > 0) {
-        nuevoMov(s.sku, 'entrada', ajusteFinal, fechas[DIAS_HISTORIA - 3], 'Compra a proveedor · factura ' + (nFactura + 7), s.prov, 'Operativo');
-      } else if (ajusteFinal < 0) {
-        nuevoMov(s.sku, 'salida', -ajusteFinal, fechas[DIAS_HISTORIA - 1], 'Venta por mayor (pedido especial)', null, 'Administrador');
+      if (correccion > 0) {
+        nuevoMov(s.sku, 'entrada', correccion, fechas[DIAS_HISTORIA - 3], 'Compra a proveedor · factura ' + (nFactura + 7), s.prov, 'Operativo');
       }
 
       productos.push({
         sku: s.sku, nombre: s.nombre, categoriaId: s.cat, unidadId: s.uni, costo: s.costo, activo: true,
         proveedorId: s.prov, tiempoEntrega: lead,
-        nivelMinimo: Math.max(1, Math.ceil(s.base * lead)), cobertura: s.cob, nivelServicio: 0.95
+        nivelMinimo: Math.max(1, Math.ceil(s.base * lead)), cobertura: s.cob, nivelServicio: 0.95,
+        minimoPedido: (MOQ[s.sku] || [1, 1])[0], multiploPedido: (MOQ[s.sku] || [1, 1])[1]
       });
     });
 
     // ordenar movimientos por fecha (y por id) para que el historial sea coherente
     movimientos.sort(function (a, b) { return a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : (a.id < b.id ? -1 : 1); });
+
+    // pedidos que ya se hicieron al proveedor y todavía no llegan
+    var pedidos = [
+      { sku: 'ARR-500', cantidad: 240, hace: 2, falta: 2 },
+      { sku: 'CAF-250', cantidad: 120, hace: 3, falta: 4 },
+      { sku: 'LEC-1L', cantidad: 240, hace: 2, falta: 1 }
+    ].map(function (p, i) {
+      var prod = productos.filter(function (x) { return x.sku === p.sku; })[0];
+      return { id: 'P' + String(i + 1).padStart(4, '0'), sku: p.sku, proveedorId: prod.proveedorId, cantidad: p.cantidad,
+        fechaPedido: addDias(HOY, -p.hace), fechaEsperada: addDias(HOY, p.falta), estado: 'pendiente' };
+    });
     return {
       fechas: fechas,
       categorias: CATEGORIAS.map(function (x) { return Object.assign({}, x); }),
       unidades: UNIDADES.map(function (x) { return Object.assign({}, x); }),
       proveedores: PROVEEDORES.map(function (x) { return Object.assign({}, x); }),
-      productos: productos, movimientos: movimientos, ventas: ventas, contador: contador
+      productos: productos, movimientos: movimientos, ventas: ventas, pedidos: pedidos, contador: contador
     };
   }
 
@@ -257,7 +282,7 @@
       this.reconstruir();
     },
     leerCambios: function () {
-      var vacio = { categorias: [], unidades: [], proveedores: [], productosNuevos: [], edicionesProducto: {}, movimientos: [], ventas: {}, siguienteMov: 1 };
+      var vacio = { categorias: [], unidades: [], proveedores: [], productosNuevos: [], edicionesProducto: {}, movimientos: [], ventas: {}, siguienteMov: 1, pedidosNuevos: [], pedidosRecibidos: [], siguientePedido: 1 };
       try {
         var raw = root.localStorage && root.localStorage.getItem(CLAVE);
         if (raw) {
@@ -286,6 +311,8 @@
         if (ed) Object.assign(p, ed);
       });
       c.movimientos.forEach(function (m) { base.movimientos.push(Object.assign({}, m)); });
+      c.pedidosNuevos.forEach(function (p) { base.pedidos.push(Object.assign({}, p)); });
+      base.pedidos.forEach(function (p) { if (c.pedidosRecibidos.indexOf(p.id) >= 0) p.estado = 'recibido'; });
       // ventas importadas: reemplazan el valor del día
       Object.keys(c.ventas).forEach(function (sku) {
         if (!base.ventas[sku]) return;
@@ -296,9 +323,14 @@
       LISTENERS.forEach(function (fn) { fn(); });
     },
     alCambiar: function (fn) { LISTENERS.push(fn); },
+    // modo servidor: el estado llega de la API en lugar de generarse aquí
+    establecer: function (estado) {
+      this.estado = estado; this.version++;
+      LISTENERS.forEach(function (fn) { fn(); });
+    },
     restablecer: function () {
       try { root.localStorage && root.localStorage.removeItem(CLAVE); } catch (e) { /* ignorar */ }
-      this.cambios = { categorias: [], unidades: [], proveedores: [], productosNuevos: [], edicionesProducto: {}, movimientos: [], ventas: {}, siguienteMov: 1 };
+      this.cambios = { categorias: [], unidades: [], proveedores: [], productosNuevos: [], edicionesProducto: {}, movimientos: [], ventas: {}, siguienteMov: 1, pedidosNuevos: [], pedidosRecibidos: [], siguientePedido: 1 };
       this.reconstruir();
     },
 
@@ -332,6 +364,23 @@
       else this.cambios.edicionesProducto[sku] = Object.assign(this.cambios.edicionesProducto[sku] || {}, campos);
       this.guardar(); this.reconstruir();
     },
+    agregarPedido: function (p) {
+      var c = this.cambios, id = 'PN' + String(c.siguientePedido++).padStart(3, '0');
+      c.pedidosNuevos.push({ id: id, sku: p.sku, proveedorId: p.proveedorId, cantidad: p.cantidad, fechaPedido: p.fechaPedido, fechaEsperada: p.fechaEsperada, estado: 'pendiente' });
+      this.guardar(); this.reconstruir();
+      return id;
+    },
+    recibirPedido: function (id, usuario) {
+      var ped = this.estado.pedidos.filter(function (p) { return p.id === id; })[0];
+      if (!ped || ped.estado !== 'pendiente') return null;
+      this.cambios.pedidosRecibidos.push(id);
+      return this.agregarMovimiento({ sku: ped.sku, tipo: 'entrada', cantidad: ped.cantidad, fecha: HOY, motivo: 'Recepción del pedido ' + id, proveedorId: ped.proveedorId, usuario: usuario });
+    },
+    cancelarPedido: function (id) {
+      var c = this.cambios;
+      if (c.pedidosRecibidos.indexOf(id) < 0) c.pedidosRecibidos.push(id);   // en el prototipo: sale de la lista de pendientes
+      this.guardar(); this.reconstruir();
+    },
     importarVentas: function (filas) { // filas: [{sku, fecha, cantidad}]
       var c = this.cambios;
       filas.forEach(function (f) {
@@ -344,6 +393,9 @@
   };
 
   INV.fechas = { HOY: HOY, INICIO: INICIO, DIAS: DIAS_HISTORIA, addDias: addDias, difDias: difDias, diaSemana: diaSemana,
-    esFechaValida: esFechaValida, corta: fechaCorta, larga: fechaLarga, media: fechaMedia };
+    esFechaValida: esFechaValida, corta: fechaCorta, larga: fechaLarga, media: fechaMedia,
+    // en modo servidor la fecha de hoy y el periodo los define la API
+    configurar: function (hoy, dias) { this.HOY = hoy; this.DIAS = dias; this.INICIO = addDias(hoy, -(dias - 1)); } };
   INV.Store = Store;
+  INV.generarBase = generarBase;
 })(typeof window !== 'undefined' ? window : globalThis);

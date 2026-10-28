@@ -1,0 +1,19 @@
+OK    se muestra el formulario de inicio de sesión (modo servidor)
+OK    clave incorrecta: Usuario o contraseña incorrectos.
+OK    el operativo inicia en Registrar movimiento
+OK    el operativo no tiene la opción de ajuste
+OK    salida mayor al stock: Solo hay 22 und en existencias. Reduce la cantidad o registra un ajuste.
+OK    salida válida confirmada: Salida registrada: −5 und de Arroz 500 g. Ahora hay 17 und. Ver historial
+OK    existencias en la base de datos: 22 → 17
+OK    el movimiento aparece en el historial
+OK    el operativo no entra al dashboard
+OK    el administrador ve el dashboard
+OK    la recomendación considera el pedido pendiente del arroz
+OK    hay botón para registrar el pedido recomendado de café
+OK    pedido registrado en el servidor (pendientes 3 → 4)
+OK    recibir el pedido P0003 sumó 240 a la leche (79 → 319)
+OK    la validación muestra 5 filas con error
+OK    la importación se aplicó en el servidor
+OK    pasos: 16
+
+ERRORES: console: Failed to load resource: the server responded with a status of 401 (Unauthorized)

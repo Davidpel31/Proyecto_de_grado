@@ -10,15 +10,14 @@
   var INV = root.INV, S = INV.Store, FE = INV.fechas, UI = INV.ui, V = INV.views, E = INV.engine;
   var doc = root.document;
 
-  S.iniciar();
-  var A = null;
-  function recalcular() { A = E.analizar(S.estado); }
-  recalcular();
+  var A = null, modoServidor = false;
+  function recalcular() { A = S.estado ? E.analizar(S.estado) : null; }
   S.alCambiar(recalcular);
 
   /* ------------------------------ rol ------------------------------ */
   var CLAVE_ROL = 'inventaria-rol', rolMemoria = null;
   function leerRol() {
+    if (modoServidor) return INV.api.token ? INV.api.rol : null;      // el rol viene del servidor (token firmado)
     try { return root.sessionStorage.getItem(CLAVE_ROL); } catch (e) { return rolMemoria; }
   }
   function fijarRol(r) {
@@ -36,6 +35,7 @@
     { re: /^\/proveedores$/, vista: 'proveedores', roles: AD, menu: 'proveedores' },
     { re: /^\/movimientos\/nuevo$/, vista: 'nuevoMovimiento', roles: TODOS, menu: 'mov-nuevo' },
     { re: /^\/movimientos\/historial$/, vista: 'historial', roles: TODOS, menu: 'mov-hist' },
+    { re: /^\/pedidos$/, vista: 'pedidos', roles: TODOS, menu: 'pedidos' },
     { re: /^\/importar$/, vista: 'importar', roles: AD, menu: 'importar' },
     { re: /^\/analisis\/abc$/, vista: 'abc', roles: AD, menu: 'abc' },
     { re: /^\/analisis\/pronostico(?:\/([^\/]+))?$/, vista: 'pronostico', roles: AD, menu: 'pronostico', param: 'sku' },
@@ -52,7 +52,8 @@
       { id: 'proveedores', t: 'Proveedores', href: '#/proveedores', roles: AD }] },
     { grupo: 'Movimientos', items: [
       { id: 'mov-nuevo', t: 'Registrar movimiento', href: '#/movimientos/nuevo', roles: TODOS },
-      { id: 'mov-hist', t: 'Historial', href: '#/movimientos/historial', roles: TODOS }] },
+      { id: 'mov-hist', t: 'Historial', href: '#/movimientos/historial', roles: TODOS },
+      { id: 'pedidos', t: 'Pedidos a proveedores', href: '#/pedidos', roles: TODOS }] },
     { id: 'importar', t: 'Importar ventas', href: '#/importar', roles: AD },
     { grupo: 'Análisis', items: [
       { id: 'abc', t: 'ABC y rotación', href: '#/analisis/abc', roles: AD },
@@ -82,16 +83,29 @@
   }
 
   /* --------------------------- pantalla de entrada --------------------------- */
-  function pintarLogin() {
+  function pintarLogin(mensaje) {
+    var cuerpo;
+    if (modoServidor) {
+      cuerpo = '<h2>Iniciar sesión</h2><form class="form-login" id="form-login" novalidate>' +
+        '<label>Usuario<input name="usuario" autocomplete="username" required autofocus></label>' +
+        '<label>Contraseña<input name="clave" type="password" autocomplete="current-password" required></label>' +
+        '<p class="error-form" id="login-error" role="alert"' + (mensaje ? '' : ' hidden') + '>' + (mensaje || '') + '</p>' +
+        '<button class="btn btn-primary" type="submit">Entrar</button></form>' +
+        '<div class="demo-credenciales"><strong>Usuarios de demostración</strong><br>Administrador: <code>admin</code> / <code>admin123</code><br>Operativo: <code>operativo</code> / <code>operativo123</code></div>';
+    } else {
+      cuerpo = '<h2>Entrar como</h2><div class="login-roles">' +
+        '<button type="button" class="rol-btn" data-rol="admin"><strong>Administrador</strong><span>Dueño del negocio: ve el dashboard, el pronóstico, las alertas y las recomendaciones.</span></button>' +
+        '<button type="button" class="rol-btn" data-rol="operativo"><strong>Operativo</strong><span>Encargado de bodega: registra entradas y salidas y consulta existencias.</span></button></div>';
+    }
     doc.getElementById('app').innerHTML =
       '<div class="login"><div class="login-caja">' +
       '<p class="marca marca-grande">' + logo() + 'InventarIA</p>' +
       '<h1>Decide cuánto comprar y cuándo, con tus propias ventas</h1>' +
-      '<p>Este es un prototipo navegable del proyecto. Funciona con datos de demostración de una tienda de barrio (25 productos y ocho meses de ventas) y todo lo que hagas se guarda solo en tu navegador.</p>' +
-      '<h2>Entrar como</h2><div class="login-roles">' +
-      '<button type="button" class="rol-btn" data-rol="admin"><strong>Administrador</strong><span>Dueño del negocio: ve el dashboard, el pronóstico, las alertas y las recomendaciones.</span></button>' +
-      '<button type="button" class="rol-btn" data-rol="operativo"><strong>Operativo</strong><span>Encargado de bodega: registra entradas y salidas y consulta existencias.</span></button></div>' +
-      '<p class="muted nota">Fecha de la demostración: ' + FE.larga(FE.HOY) + '. No hay contraseñas: en la versión 1.0 el acceso se hará con usuario y contraseña.</p>' +
+      (modoServidor
+        ? '<p>Versión conectada al servidor: los datos viven en la base de datos y cada acción pasa por la API con su inicio de sesión y sus roles.</p>'
+        : '<p>Este es un prototipo navegable del proyecto. Funciona con datos de demostración de una tienda de barrio (25 productos y ocho meses de ventas) y todo lo que hagas se guarda solo en tu navegador.</p>') +
+      cuerpo +
+      (modoServidor ? '' : '<p class="muted nota">Fecha de la demostración: ' + FE.larga(FE.HOY) + '. No hay contraseñas: en la versión conectada el acceso se hace con usuario y contraseña.</p>') +
       '</div></div>';
     Array.prototype.forEach.call(doc.querySelectorAll('.rol-btn'), function (b) {
       b.addEventListener('click', function () {
@@ -99,6 +113,19 @@
         var destino = '#' + inicioDe(r);
         if (root.location.hash === destino) pintar(true); else root.location.hash = destino;
       });
+    });
+    var f = doc.getElementById('form-login');
+    if (f) f.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var caja = doc.getElementById('login-error'), boton = f.querySelector('button[type=submit]');
+      boton.disabled = true;
+      INV.api.login(f.elements.usuario.value.trim().toLowerCase(), f.elements.clave.value)
+        .then(function () { return INV.api.cargar(); })
+        .then(function () {
+          var destino = '#' + inicioDe(INV.api.rol);
+          if (root.location.hash === destino) pintar(true); else root.location.hash = destino;
+        })
+        .catch(function (er) { boton.disabled = false; caja.textContent = er.message; caja.hidden = false; });
     });
   }
   function logo() {
@@ -126,7 +153,8 @@
   /* -------------------------------- pintar -------------------------------- */
   function pintar(cambioDeRuta) {
     var rol = leerRol();
-    if (!rol) { pintarLogin(); return; }
+    if (!rol || !S.estado) { pintarLogin(); return; }
+    INV.ui.ocultarPocosDatos = rol === 'operativo';   // el operativo no ve el historial de ventas: no tiene sentido ese aviso
     var h = parsearHash(), ruta = h.ruta || inicioDe(rol);
     var def = null, args = {};
     RUTAS.forEach(function (r) {
@@ -135,7 +163,7 @@
       if (m) { def = r; if (r.param && m[1]) args[r.param] = decodeURIComponent(m[1]); }
     });
     var contenido, despues = null;
-    var ctx = { A: A, estado: S.estado, rol: rol, q: h.q, args: args, saludo: 'Buenos días', ir: ir, refrescar: function () { pintar(false); } };
+    var ctx = { A: A, estado: S.estado, rol: rol, servidor: modoServidor, q: h.q, args: args, saludo: 'Buenos días', ir: ir, refrescar: function () { pintar(false); } };
     if (!def) {
       contenido = '<header class="page-head"><div><h1>Página no encontrada</h1></div></header><div class="vacio"><p>Esa dirección no existe en el prototipo.</p><a class="btn" href="#' + inicioDe(rol) + '">Ir al inicio</a></div>';
     } else if (def.roles.indexOf(rol) < 0) {
@@ -150,10 +178,10 @@
       '<a class="saltar" href="#" id="saltar">Ir al contenido</a>' +
       '<div class="app"><aside class="lateral-nav" id="nav" aria-label="Menú principal">' +
       '<p class="marca">' + logo() + 'InventarIA</p><nav>' + menuHTML(rol, activo) + '</nav>' +
-      '<div class="nav-pie"><p class="rol-actual">Rol: <strong>' + rolEtiqueta(rol) + '</strong></p>' +
-      '<button type="button" class="btn-nav" id="cambiar-rol">Cambiar de rol</button>' +
-      '<button type="button" class="btn-nav" id="restablecer">Restablecer datos de demostración</button>' +
-      '<p class="nav-nota">Prototipo con datos ficticios. Lo que registres se guarda solo en este navegador.</p></div></aside>' +
+      '<div class="nav-pie"><p class="rol-actual">' + (modoServidor ? 'Sesión: <strong>' + esc(INV.api.nombre || '') + '</strong> (' + rolEtiqueta(rol) + ')' : 'Rol: <strong>' + rolEtiqueta(rol) + '</strong>') + '</p>' +
+      '<button type="button" class="btn-nav" id="cambiar-rol">' + (modoServidor ? 'Cerrar sesión' : 'Cambiar de rol') + '</button>' +
+      (modoServidor ? '' : '<button type="button" class="btn-nav" id="restablecer">Restablecer datos de demostración</button>') +
+      '<p class="nav-nota">' + (modoServidor ? 'Conectado al servidor: los datos están en la base de datos.' : 'Prototipo con datos ficticios. Lo que registres se guarda solo en este navegador.') + '</p></div></aside>' +
       '<div class="principal"><div class="barra-movil"><button type="button" class="btn-menu" id="btn-menu" aria-expanded="false" aria-controls="nav">Menú</button><span class="marca">' + logo() + 'InventarIA</span></div>' +
       '<main id="contenido" tabindex="-1">' + contenido + '</main></div></div>';
 
@@ -162,8 +190,12 @@
       var abierto = nav.classList.toggle('abierto'); btn.setAttribute('aria-expanded', abierto ? 'true' : 'false');
     });
     nav.addEventListener('click', function (ev) { if (ev.target.closest('a')) { nav.classList.remove('abierto'); btn.setAttribute('aria-expanded', 'false'); } });
-    doc.getElementById('cambiar-rol').addEventListener('click', function () { fijarRol(null); root.location.hash = ''; pintar(true); });
-    doc.getElementById('restablecer').addEventListener('click', function () {
+    doc.getElementById('cambiar-rol').addEventListener('click', function () {
+      if (modoServidor) INV.api.cerrarSesion(); else fijarRol(null);
+      root.location.hash = ''; pintar(true);
+    });
+    var rest = doc.getElementById('restablecer');
+    if (rest) rest.addEventListener('click', function () {
       if (root.confirm('Se borrarán los movimientos, productos e importaciones que hayas hecho y se volverá a los datos de demostración. ¿Continuar?')) {
         S.restablecer(); UI.aviso('Datos de demostración restablecidos.'); pintar(false);
       }
@@ -178,9 +210,23 @@
     }
   }
 
+  function esc(t) { return UI.esc(t); }
+
+  // Arranque: ¿hay servidor? Si lo hay, se usa la API; si no (p. ej. GitHub Pages), el prototipo local.
+  function arrancar() {
+    INV.api.detectar().then(function (hay) {
+      modoServidor = hay;
+      if (hay) {
+        INV.api.activarModoServidor();
+        INV.api.alExpirar = function () { pintarLogin('Tu sesión expiró. Inicia sesión de nuevo.'); };
+        if (INV.api.sesionActiva()) return INV.api.cargar().catch(function () { INV.api.cerrarSesion(); });
+      } else {
+        S.iniciar();
+      }
+    }).then(function () { recalcular(); pintar(true); });
+  }
   root.addEventListener('hashchange', function () { pintar(true); });
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { pintar(true); });
-  else pintar(true);
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', arrancar); else arrancar();
 
   INV.app = { ir: ir, pintar: pintar, analisis: function () { return A; } };
 })(typeof window !== 'undefined' ? window : globalThis);

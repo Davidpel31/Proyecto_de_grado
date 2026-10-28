@@ -284,3 +284,10 @@ dialog.modal footer { display: flex; justify-content: flex-end; gap: 8px; paddin
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .tile:hover { transform: none; }
 }
+
+/* ------------------------- Avance 4: avisos y botones chicos ------------------------- */
+.banner-aviso { background: var(--ambar-t); border-left: 5px solid var(--ambar-b); padding: 12px 16px; border-radius: 0 6px 6px 0; margin-bottom: 16px; max-width: 90ch; }
+.btn-chico { min-height: 32px; padding: 3px 10px; font-size: 0.875rem; }
+.form-login { display: grid; gap: 14px; margin-top: 8px; }
+.demo-credenciales { background: var(--marca-tinte); border-radius: 6px; padding: 10px 14px; font-size: 0.9375rem; margin-top: 14px; }
+.demo-credenciales code { background: #fff; }

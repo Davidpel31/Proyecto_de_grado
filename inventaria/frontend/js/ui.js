@@ -40,7 +40,7 @@
   }
   function badgeInfo(info) {
     var b = badge(info.estado);
-    if (info.rep.regla === 'simple' && info.estado !== 'inactivo') b += ' <span class="chip-mini" title="Hay pocas ventas registradas: se usa una regla simple">pocos datos</span>';
+    if (info.rep.regla === 'simple' && info.estado !== 'inactivo' && !INV.ui.ocultarPocosDatos) b += ' <span class="chip-mini" title="Hay pocas ventas registradas: se usa una regla simple">pocos datos</span>';
     return b;
   }
   function accionSugerida(i) {
@@ -163,10 +163,16 @@
         else if (el.type === 'radio') { if (el.checked) datos[el.name] = el.value; }
         else datos[el.name] = el.value;
       });
-      var err = opciones.alGuardar(datos);
-      var caja = dlg.querySelector('.error-form');
-      if (err) { caja.textContent = err; caja.hidden = false; return; }
-      cerrar();
+      var caja = dlg.querySelector('.error-form'), boton = dlg.querySelector('button[type=submit]');
+      var res;
+      try { res = opciones.alGuardar(datos); } catch (e) { res = e.message; }
+      boton.disabled = true;
+      // alGuardar puede devolver un texto de error, nada, o una promesa (cuando habla con el servidor)
+      Promise.resolve(res).then(function (err) {
+        boton.disabled = false;
+        if (err) { caja.textContent = err; caja.hidden = false; return; }
+        cerrar();
+      }).catch(function (e) { boton.disabled = false; caja.textContent = e.message; caja.hidden = false; });
     });
     try { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); } catch (e) { dlg.setAttribute('open', ''); }
     var primero = dlg.querySelector('input:not([type=hidden]),select,textarea');

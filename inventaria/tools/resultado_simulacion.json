@@ -1,0 +1,579 @@
+{
+ "diasSimulados": 56,
+ "productos": 25,
+ "resumen": {
+  "A": {
+   "diasFaltante": 94,
+   "pctDiasFaltante": 0.06714285714285714,
+   "demandaAtendida": 0.9512843224092117,
+   "inventarioPromedio": 3122564.285714286,
+   "pedidos": 218
+  },
+  "B": {
+   "diasFaltante": 3,
+   "pctDiasFaltante": 0.002142857142857143,
+   "demandaAtendida": 0.9993799822852082,
+   "inventarioPromedio": 7482660.714285715,
+   "pedidos": 148
+  },
+  "C": {
+   "diasFaltante": 1,
+   "pctDiasFaltante": 0.0007142857142857143,
+   "demandaAtendida": 0.999734278122232,
+   "inventarioPromedio": 7591796.428571428,
+   "pedidos": 122
+  }
+ },
+ "porProducto": [
+  {
+   "sku": "ARR-500",
+   "nombre": "Arroz 500 g",
+   "A": {
+    "faltantes": 6,
+    "atendida": 0.9553679131483716,
+    "inv": 136237.5,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 300525,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 305925,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "ACE-1L",
+   "nombre": "Aceite vegetal 1 L",
+   "A": {
+    "faltantes": 3,
+    "atendida": 0.9762611275964391,
+    "inv": 490700,
+    "pedidos": 9
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1038800,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1070300,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "LEN-500",
+   "nombre": "Lentejas 500 g",
+   "A": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 20457.14285714286,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 26285.714285714286,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 37542.857142857145,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "AZU-1K",
+   "nombre": "Azúcar 1 kg",
+   "A": {
+    "faltantes": 4,
+    "atendida": 0.9723926380368099,
+    "inv": 67242.85714285714,
+    "pedidos": 10
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 186107.14285714287,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 186750,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "SAL-1K",
+   "nombre": "Sal 1 kg",
+   "A": {
+    "faltantes": 3,
+    "atendida": 0.9727891156462585,
+    "inv": 10928.57142857143,
+    "pedidos": 12
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 34901.78571428572,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 35437.5,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "HAR-1K",
+   "nombre": "Harina de trigo 1 kg",
+   "A": {
+    "faltantes": 2,
+    "atendida": 0.9695121951219512,
+    "inv": 39953.57142857143,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 85564.28571428571,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 93932.14285714286,
+    "pedidos": 5
+   }
+  },
+  {
+   "sku": "PAS-250",
+   "nombre": "Pasta 250 g",
+   "A": {
+    "faltantes": 4,
+    "atendida": 0.9440298507462687,
+    "inv": 64157.142857142855,
+    "pedidos": 6
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 113785.71428571429,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 116957.14285714286,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "ATU-170",
+   "nombre": "Atún en lata 170 g",
+   "A": {
+    "faltantes": 5,
+    "atendida": 0.9333333333333333,
+    "inv": 78000,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 181164.2857142857,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 185064.2857142857,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "FRI-500",
+   "nombre": "Fríjol 500 g",
+   "A": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 57107.142857142855,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 76875,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 79437.5,
+    "pedidos": 5
+   }
+  },
+  {
+   "sku": "PAN-500",
+   "nombre": "Panela 500 g",
+   "A": {
+    "faltantes": 4,
+    "atendida": 0.925,
+    "inv": 21850,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 1,
+    "atendida": 0.975,
+    "inv": 56650,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 1,
+    "atendida": 0.975,
+    "inv": 66000,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "CAF-250",
+   "nombre": "Café molido 250 g",
+   "A": {
+    "faltantes": 14,
+    "atendida": 0.7660208643815201,
+    "inv": 166216.07142857142,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 656362.5,
+    "pedidos": 6
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 685933.9285714285,
+    "pedidos": 5
+   }
+  },
+  {
+   "sku": "LEC-1L",
+   "nombre": "Leche entera 1 L",
+   "A": {
+    "faltantes": 4,
+    "atendida": 0.9864805931094636,
+    "inv": 294867.85714285716,
+    "pedidos": 16
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 837176.7857142857,
+    "pedidos": 11
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 750262.5,
+    "pedidos": 9
+   }
+  },
+  {
+   "sku": "HUE-30",
+   "nombre": "Huevos x30",
+   "A": {
+    "faltantes": 6,
+    "atendida": 0.9494640122511485,
+    "inv": 277848.21428571426,
+    "pedidos": 16
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1045687.5,
+    "pedidos": 12
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1056294.642857143,
+    "pedidos": 9
+   }
+  },
+  {
+   "sku": "QUE-500",
+   "nombre": "Queso campesino 500 g",
+   "A": {
+    "faltantes": 1,
+    "atendida": 0.989010989010989,
+    "inv": 65371.42857142857,
+    "pedidos": 13
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 118171.42857142857,
+    "pedidos": 10
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 127771.42857142857,
+    "pedidos": 8
+   }
+  },
+  {
+   "sku": "GAS-15L",
+   "nombre": "Gaseosa 1,5 L",
+   "A": {
+    "faltantes": 5,
+    "atendida": 0.9530744336569579,
+    "inv": 561310.7142857143,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1115292.857142857,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 1100250,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "AGU-600",
+   "nombre": "Agua 600 ml",
+   "A": {
+    "faltantes": 9,
+    "atendida": 0.9,
+    "inv": 110346.42857142857,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 239432.14285714287,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 246760.7142857143,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "CER-330",
+   "nombre": "Cerveza lata 330 ml",
+   "A": {
+    "faltantes": 5,
+    "atendida": 0.9720575783234547,
+    "inv": 232000,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 551103.5714285715,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 561046.4285714285,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "JAB-BAN",
+   "nombre": "Jabón de baño",
+   "A": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 30310.714285714286,
+    "pedidos": 9
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 69657.14285714286,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 75160.71428571429,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "CHA-SAC",
+   "nombre": "Champú sachet",
+   "A": {
+    "faltantes": 5,
+    "atendida": 0.9522546419098143,
+    "inv": 27208.928571428572,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 56957.142857142855,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 55366.07142857143,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "DET-1K",
+   "nombre": "Detergente en polvo 1 kg",
+   "A": {
+    "faltantes": 1,
+    "atendida": 0.9903846153846154,
+    "inv": 69289.28571428571,
+    "pedidos": 8
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 140598.2142857143,
+    "pedidos": 5
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 167008.92857142858,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "PAP-4",
+   "nombre": "Papel higiénico x4",
+   "A": {
+    "faltantes": 2,
+    "atendida": 0.9865771812080537,
+    "inv": 93901.78571428571,
+    "pedidos": 7
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 183160.7142857143,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 185946.42857142858,
+    "pedidos": 3
+   }
+  },
+  {
+   "sku": "GAL-SOD",
+   "nombre": "Galletas de soda",
+   "A": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 93498.21428571429,
+    "pedidos": 5
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 117744.64285714286,
+    "pedidos": 4
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 115862.5,
+    "pedidos": 4
+   }
+  },
+  {
+   "sku": "PAN-TAJ",
+   "nombre": "Pan tajado",
+   "A": {
+    "faltantes": 6,
+    "atendida": 0.9547872340425532,
+    "inv": 68460.71428571429,
+    "pedidos": 15
+   },
+   "B": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 169442.85714285713,
+    "pedidos": 21
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 166439.2857142857,
+    "pedidos": 13
+   }
+  },
+  {
+   "sku": "VEL-6",
+   "nombre": "Velas x6",
+   "A": {
+    "faltantes": 3,
+    "atendida": 0.8461538461538461,
+    "inv": 11383.92857142857,
+    "pedidos": 4
+   },
+   "B": {
+    "faltantes": 1,
+    "atendida": 0.9743589743589743,
+    "inv": 32812.5,
+    "pedidos": 2
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 44017.857142857145,
+    "pedidos": 2
+   }
+  },
+  {
+   "sku": "PIL-AA",
+   "nombre": "Pilas AA x2",
+   "A": {
+    "faltantes": 2,
+    "atendida": 0.9137931034482758,
+    "inv": 33916.07142857143,
+    "pedidos": 5
+   },
+   "B": {
+    "faltantes": 1,
+    "atendida": 0.9482758620689655,
+    "inv": 48401.78571428572,
+    "pedidos": 3
+   },
+   "C": {
+    "faltantes": 0,
+    "atendida": 1,
+    "inv": 76328.57142857143,
+    "pedidos": 3
+   }
+  }
+ ]
+}

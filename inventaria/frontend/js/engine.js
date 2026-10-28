@@ -15,23 +15,26 @@
     return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
   }
 
+  // Existencias al cierre de cada día. Se parte del total real (suma de TODOS los movimientos) y se
+  // retrocede día a día, así el resultado no depende de cuántos días de historia se muestren.
   function serieExistencias(estado) {
     var N = estado.fechas.length, idx = {};
     estado.fechas.forEach(function (f, i) { idx[f] = i; });
-    var delta = {};
-    estado.productos.forEach(function (p) { delta[p.sku] = new Array(N).fill(0); });
-    var ultimaEntrada = {};
+    var delta = {}, total = {}, ultimaEntrada = {};
+    estado.productos.forEach(function (p) { delta[p.sku] = new Array(N).fill(0); total[p.sku] = 0; });
     estado.movimientos.forEach(function (m) {
-      var i = idx[m.fecha];
-      if (i === undefined || !delta[m.sku]) return;
+      if (!delta[m.sku]) return;
       var d = m.tipo === 'salida' ? -m.cantidad : m.cantidad; // entrada y ajuste: la cantidad ya trae su signo
-      delta[m.sku][i] += d;
+      total[m.sku] += d;
+      var i = idx[m.fecha];
+      if (i !== undefined) delta[m.sku][i] += d;
       if (m.tipo === 'entrada' && (!ultimaEntrada[m.sku] || m.fecha > ultimaEntrada[m.sku])) ultimaEntrada[m.sku] = m.fecha;
     });
     var series = {};
     Object.keys(delta).forEach(function (sku) {
-      var s = 0;
-      series[sku] = delta[sku].map(function (d) { s += d; return s; });
+      var s = new Array(N), actual = total[sku];
+      for (var t = N - 1; t >= 0; t--) { s[t] = actual; actual -= delta[sku][t]; }
+      series[sku] = s;
     });
     return { series: series, ultimaEntrada: ultimaEntrada };
   }
@@ -48,6 +51,7 @@
     estado.proveedores.forEach(function (p) { provPorId[p.id] = p; });
 
     estado.productos.forEach(function (p) {
+      var sinVentas = !estado.ventas[p.sku];   // el rol Operativo no recibe el historial de ventas
       var ventas = estado.ventas[p.sku] || new Array(N).fill(0);
       var serie = ex.series[p.sku];
       var stock = serie[N - 1];
@@ -57,17 +61,22 @@
       var rotacion = stockProm > 0 ? v30 / stockProm : 0;
       var claseRot = rotacion >= 3 ? 'alta' : rotacion >= 1.5 ? 'media' : 'baja';
 
-      var analisis = F.analizar(ventas);
-      var base = { stock: stock, lead: p.tiempoEntrega, cobertura: p.cobertura, nivelServicio: p.nivelServicio, nivelMinimo: p.nivelMinimo, analisis: analisis };
+      // días en que el producto terminó agotado: lo vendido ese día no mide la demanda
+      var cens = serie.map(function (x) { return x <= 0; });
+      var analisis = F.analizar(ventas, cens);
+      var pendientes = (estado.pedidos || []).filter(function (x) { return x.sku === p.sku && x.estado === 'pendiente'; })
+        .map(function (x) { return { id: x.id, cantidad: x.cantidad, fechaEsperada: x.fechaEsperada, dias: Math.max(0, INV.fechas.difDias(INV.fechas.HOY, x.fechaEsperada)) }; });
+      var base = { stock: stock, lead: p.tiempoEntrega, cobertura: p.cobertura, nivelServicio: p.nivelServicio, nivelMinimo: p.nivelMinimo, analisis: analisis,
+        pedidos: pendientes, minimoPedido: p.minimoPedido || 1, multiploPedido: p.multiploPedido || 1 };
       var rep = F.reponer(base);
       var est = p.activo === false ? 'inactivo' : F.clasificar(base, rep);
       var uni = uniPorId[p.unidadId] || { abrev: 'und', nombre: 'Unidad' };
 
       info[p.sku] = {
         sku: p.sku, producto: p, categoria: (catPorId[p.categoriaId] || {}).nombre || '—', unidad: uni, proveedor: provPorId[p.proveedorId] || null,
-        existencias: stock, serieExistencias: serie, ventas: ventas, ventas30: v30, ventas90: v90, valor90: v90 * p.costo,
+        existencias: stock, serieExistencias: serie, ventas: ventas, pendientes: pendientes, censuradas: cens, ventas30: v30, ventas90: v90, valor90: v90 * p.costo,
         rotacion: rotacion, claseRot: claseRot, analisis: analisis, rep: rep, estado: est,
-        ultimaEntrada: ex.ultimaEntrada[p.sku] || null, abc: null, pctAcum: null
+        sinVentas: sinVentas, ultimaEntrada: ex.ultimaEntrada[p.sku] || null, abc: null, pctAcum: null
       };
       lista.push(info[p.sku]);
     });
@@ -130,8 +139,23 @@
   }
 
   function mensaje(i) {
+    var t = mensajeBase(i);
+    if (i.pendientes && i.pendientes.length && i.estado !== 'inactivo') {
+      var tot = i.pendientes.reduce(function (s, x) { return s + x.cantidad; }, 0);
+      var prox = i.pendientes.slice().sort(function (a, b) { return a.dias - b.dias; })[0];
+      t += ' Ya hay ' + fmt(tot) + ' ' + i.unidad.abrev + ' pedidas que llegan ' + cuando(prox.dias) + '.';
+    }
+    return t;
+  }
+
+  function mensajeBase(i) {
     var u = i.unidad.abrev, r = i.rep, p = i.producto;
     if (i.estado === 'inactivo') return 'Producto desactivado: no genera alertas ni recomendaciones.';
+    if (r.regla === 'simple' && i.sinVentas) {
+      return i.existencias <= p.nivelMinimo
+        ? 'Está por debajo del nivel mínimo (' + fmt(p.nivelMinimo) + ' ' + u + '). El pronóstico de demanda solo lo ve el administrador.'
+        : 'Por encima del nivel mínimo (' + fmt(p.nivelMinimo) + ' ' + u + '). El pronóstico de demanda solo lo ve el administrador.';
+    }
     if (r.regla === 'simple') {
       return i.estado === 'vigilar'
         ? 'Está por debajo del nivel mínimo (' + fmt(p.nivelMinimo) + ' ' + u + '). Como hay pocas ventas registradas, el sistema usa una regla simple en lugar de un pronóstico.'
